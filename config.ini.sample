@@ -1,0 +1,25 @@
+; config file
+
+
+; vpopmail folders containing accounts to transfer
+vpopmaildirs[] = "/home/vpopmail/domains"
+vpopmaildirs[] = "/home/vpopmail/domains/0"
+
+; Temporary password to setup account in Zimbra with
+temporarypassword = HM6VT78K925j3Ygt
+
+; IMAPSync variables
+imapsyncbin = "/root/imapsync-1.607/imapsync"
+imapsync_source = "oldmailserver.addr"
+imapsync_source_port = "600"
+imapsync_source_login = "admin"
+imapsync_dest = "newmailserver.addr"
+imapsync_bypass_password = "Rp8729Tg6e4A5k3L"
+imapsync_flags = "--useuid --dryrun"
+
+; EZMLM bin directory (used to list mailing list members)
+ezmlmlist_bin = "/usr/local/bin/ezmlm/ezmlm-list"
+
+; Encoding used by your putty client on the destination server
+; will be used to encode account names (or else accents will fail)
+destination_encoding = "UTF-8"
