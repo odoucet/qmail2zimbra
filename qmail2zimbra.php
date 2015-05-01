@@ -80,7 +80,7 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
         );
 
         foreach ($vpasswdLines as $account) {
-            list($user, $passwd, , , $name, $quota) = explode(':', $account);
+            list($user, $passwd, , , $name, , $quota) = explode(':', $account);
 
             //printf("User: %s '%s'\n", $user, $name);
 
@@ -98,10 +98,21 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                 FILE_APPEND
             );
 
-            // @todo quota
-            // modifyAccount $user@$domain zimbraMailQuota '$quota'" >>$creationFile
             if ($quota != 0) {
-                var_dump($quota);
+                // transform
+                if (substr($quota, -1, 1) == 'S') {
+                    $quota = (int) substr($quota, 0, -1);
+                } elseif (substr($quota, -2, 2) == 'MB') {
+                    $quota = (int) substr($quota, 0, -2) * 1024*1024;
+                }
+                echo $user.'@'.$domainName.': '.$quota."\n";
+
+                file_put_contents(
+                    $alterFile,
+                    ' modifyAccount '.$user.'@'.$domainName.' zimbraMailQuota "'.$quota.'"'."\n",
+                    FILE_APPEND
+                );
+
             }
 
             // IMAPSync script
