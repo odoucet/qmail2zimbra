@@ -6,6 +6,7 @@ What it does
 ------------
 
 * Convert email accounts
+* Handle user quota
 * Handle mailing lists
 * Handle autoresponder
 * Handle redirections to external addresses
