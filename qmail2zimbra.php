@@ -25,6 +25,24 @@ if (!$config) {
     exit(1);
 }
 
+
+
+// Prepare domain aliases, to be added later
+$domainAliasesArray = array();
+
+$data = file($config['qmail_users_assign']);
+foreach ($data as $line) {
+    // Syntax: "+dom.com-:dom2.com:89:89:/home/path/to/domain:-::"
+    $line = explode(':', $line);
+
+    $line[0] = substr($line[0], 1, -1);
+
+    if ($line[1] == $line[0]) continue;
+
+    $domainAliasesArray[$line[1]][] = $line[0];
+}
+
+
 foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
     if (!is_dir($vpopMailDirectory)) {
         echo "ERROR: 'vpopmaildirs' config is wrong : '".$vpopMailDirectory.
@@ -70,8 +88,13 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
 
         file_put_contents($creationFile, ' createDomain '.$domainName."\n", FILE_APPEND);
 
-        // @todo zmprov createAliasDomain
-        // http://wiki.zimbra.com/wiki/Managing_Domains
+        // Add aliases
+        if (isset($domainAliasesArray[$domainName])) {
+            foreach ($domainAliasesArray[$domainName] as $dom) {
+                file_put_contents($creationFile, ' createAliasDomain '.$dom.' '.$domainName.
+                    ' zimbraMailCatchAllForwardingAddress  @'.$domainName."\n", FILE_APPEND);
+            }
+        }
 
         // Read vpasswd file
         $vpasswdLines = file(
@@ -105,7 +128,6 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                 } elseif (substr($quota, -2, 2) == 'MB') {
                     $quota = (int) substr($quota, 0, -2) * 1024*1024;
                 }
-                echo $user.'@'.$domainName.': '.$quota."\n";
 
                 file_put_contents(
                     $alterFile,
@@ -331,6 +353,7 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
         } // end .qmail-* files
     } // end loop dir()->read()
 }
+
 
 function convert_name($name)
 {

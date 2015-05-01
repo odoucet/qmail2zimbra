@@ -23,3 +23,6 @@ ezmlmlist_bin = "/usr/local/bin/ezmlm/ezmlm-list"
 ; Encoding used by your putty client on the destination server
 ; will be used to encode account names (or else accents will fail)
 destination_encoding = "UTF-8"
+
+; /var/qmail/users/assign file path (contains domain aliases)
+qmail_users_assign = "/var/qmail/users/assign"
