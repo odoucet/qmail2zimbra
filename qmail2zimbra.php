@@ -34,6 +34,9 @@ $data = file($config['qmail_users_assign']);
 foreach ($data as $line) {
     // Syntax: "+dom.com-:dom2.com:89:89:/home/path/to/domain:-::"
     $line = explode(':', $line);
+    if (count($line) < 4) {
+        continue;
+    }
 
     $line[0] = substr($line[0], 1, -1);
 
@@ -102,6 +105,9 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
             FILE_SKIP_EMPTY_LINES | FILE_IGNORE_NEW_LINES
         );
 
+        // keep a list
+        $createdAccounts = array();
+
         foreach ($vpasswdLines as $account) {
             list($user, $passwd, , , $name, , $quota) = explode(':', $account);
 
@@ -115,6 +121,8 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                 FILE_APPEND
             );
 
+            $createdAccounts[] = $user;
+
             file_put_contents(
                 $passwordFile,
                 ' modifyAccount '.$user.'@'.$domainName.' userPassword \'{crypt}'.$passwd.'\''."\n",
@@ -127,6 +135,10 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                     $quota = (int) substr($quota, 0, -1);
                 } elseif (substr($quota, -2, 2) == 'MB') {
                     $quota = (int) substr($quota, 0, -2) * 1024*1024;
+                } elseif (substr($quota, -6) == ',1000C') {
+                    $quota = (int) substr($quota, 0, -7);
+                } else {
+                    echo "Case not handled of quota : ".$quota."\n";
                 }
 
                 file_put_contents(
@@ -279,7 +291,24 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                 if (strpos($line, '/autorespond ') !== false) {
                     // Responder
 
-                    # @todo : if account does not exist, create it with zimbraPrefMailLocalDeliveryDisabled
+                    # if account does not exist, create it with zimbraPrefMailLocalDeliveryDisabled TRUE
+                    if (!in_array($name, $createdAccounts)) {
+                        file_put_contents(
+                            $creationFile,
+                            ' createAccount '.$name.'@'.$domainName.' "'.
+                            $config['temporarypassword'].'" displayName "'.
+                            convert_name($name).' (disabled)" givenName "'.convert_name($name).' (disabled)"'."\n",
+                            FILE_APPEND
+                        );
+
+                        file_put_contents(
+                            $alterFile,
+                            ' modifyAccount '.$name.'@'.$domainName.' zimbraPrefMailLocalDeliveryDisabled TRUE'."\n",
+                            FILE_APPEND
+                        ); 
+                    }
+
+
                     $args = preg_split('@\s+@', $line);
 
                     $msgContent = convert_name(file_get_contents($args[3]));
@@ -287,7 +316,7 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                     file_put_contents(
                         $alterFile,
                         ' modifyAccount '.$name.'@'.$domainName.' zimbraPrefOutOfOfficeReply "'.
-                        str_replace("\n", '\n', substr($msgContent, strpos($msgContent, "\n")+1, 8000)).'"'."\n",
+                        convert_name(str_replace("\n", '\n', substr($msgContent, strpos($msgContent, "\n", strpos($msgContent, "\n")+1)+2, 8000))).'"'."\n",
                         FILE_APPEND
                     );
                     continue;
@@ -302,11 +331,11 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                     // local or distant ?
                     if (strpos($line, '@'.$domainName) === false) {
                         // distant - we should create the email and set some Zimbra values
-                        $distantRedirections[$name.'@'.$domainName][] = trim($line);
+                        $distantRedirections[trim($line)][] = $name.'@'.$domainName;
 
                     } else {
                         // local
-                        $localAccountAlias[$name.'@'.$domainName][] = trim($line);
+                        $localAccountAlias[trim($line)][] =  $name.'@'.$domainName;
                     }
                 } else {
                     // Line unknown debug
@@ -323,7 +352,7 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                     $creationFile,
                     ' createAccount '.$src.' "'.
                     $config['temporarypassword'].'" displayName "'.
-                    convert_name($name).'" givenName "'.convert_name($name).'"'."\n",
+                    convert_name($name).' (disabled)" givenName "'.convert_name($name).' (disabled)"'."\n",
                     FILE_APPEND
                 );
 
