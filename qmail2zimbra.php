@@ -129,7 +129,7 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                     -strlen('/mailinglist')
                 );
                 $existingMailingLists[] = $mailingAddress;
-                
+
                 file_put_contents(
                     $creationFile,
                     ' createDistributionList '.$mailingAddress.'@'.$domainName."\n",
@@ -221,10 +221,16 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                 continue;
             }
 
+            // $name can contain ':' : it means dot
+            $name = str_replace(':', '.', $name);
+
             $qmailFileContent = file($qmailFile);
 
             // For local alias, we must add them on the same loop
             $localAccountAlias = array();
+
+            // distant redirections, we must add them on the same loop (too)
+            $distantRedirections = array();
 
             foreach ($qmailFileContent as $line) {
                 if (trim($line) == '') {
@@ -247,7 +253,8 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
 
                     file_put_contents(
                         $alterFile,
-                        ' modifyAccount '.$name.'@'.$domainName.' zimbraPrefOutOfOfficeReply "'.$msgContent.'"'."\n",
+                        ' modifyAccount '.$name.'@'.$domainName.' zimbraPrefOutOfOfficeReply "'.
+                        str_replace("\n", '\n', substr($msgContent, strpos($msgContent, "\n")+1, 8000)).'"'."\n",
                         FILE_APPEND
                     );
                     continue;
@@ -262,26 +269,7 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                     // local or distant ?
                     if (strpos($line, '@'.$domainName) === false) {
                         // distant - we should create the email and set some Zimbra values
-                        file_put_contents(
-                            $creationFile,
-                            ' createAccount '.$name.'@'.$domainName.' "'.
-                            $config['temporarypassword'].'" displayName "'.
-                            convert_name($name).'" givenName "'.convert_name($name).'"'."\n",
-                            FILE_APPEND
-                        );
-
-                        file_put_contents(
-                            $alterFile,
-                            ' modifyAccount '.$name.'@'.$domainName.' zimbraPrefMailForwardingAddress "'.
-                            trim($line).'"'."\n",
-                            FILE_APPEND
-                        );
-
-                        file_put_contents(
-                            $alterFile,
-                            ' modifyAccount '.$name.'@'.$domainName.' zimbraPrefMailLocalDeliveryDisabled TRUE "'."\n",
-                            FILE_APPEND
-                        );
+                        $distantRedirections[$name.'@'.$domainName][] = trim($line);
 
                     } else {
                         // local
@@ -295,11 +283,36 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
 
             } // end foreach lines of .qmail file
 
+            // create accounts needed
+            foreach ($distantRedirections as $src => $dstArray) {
+
+                file_put_contents(
+                    $creationFile,
+                    ' createAccount '.$src.' "'.
+                    $config['temporarypassword'].'" displayName "'.
+                    convert_name($name).'" givenName "'.convert_name($name).'"'."\n",
+                    FILE_APPEND
+                );
+
+                file_put_contents(
+                    $alterFile,
+                    ' modifyAccount '.$src.' zimbraPrefMailForwardingAddress "'.
+                    implode(',', $dstArray).'"'."\n",
+                    FILE_APPEND
+                );
+
+                file_put_contents(
+                    $alterFile,
+                    ' modifyAccount '.$src.' zimbraPrefMailLocalDeliveryDisabled TRUE'."\n",
+                    FILE_APPEND
+                );
+            }
+
             // Add aliases at the same time
             foreach ($localAccountAlias as $src => $dstArray) {
                 file_put_contents(
                     $alterFile,
-                    ' addAccountAlias '.implode(',', $dstArray).' '.$src."\n",
+                    ' addAccountAlias '.$src.' "'.implode(',', $dstArray).'"'."\n",
                     FILE_APPEND
                 );
             }
@@ -314,3 +327,4 @@ function convert_name($name)
 
     return str_replace('"', '\"', iconv('ISO-8859-1', $config['destination_encoding'], $name));
 }
+
