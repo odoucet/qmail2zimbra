@@ -25,8 +25,6 @@ if (!$config) {
     exit(1);
 }
 
-
-
 // Prepare domain aliases, to be added later
 $domainAliasesArray = array();
 
@@ -331,7 +329,7 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                     // local or distant ?
                     if (strpos($line, '@'.$domainName) === false) {
                         // distant - we should create the email and set some Zimbra values
-                        $distantRedirections[trim($line)][] = $name.'@'.$domainName;
+                        $distantRedirections[$name.'@'.$domainName][] = trim($line);
 
                     } else {
                         // local
