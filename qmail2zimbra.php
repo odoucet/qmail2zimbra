@@ -264,6 +264,12 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
         // Read all .qmail files now
         $qmailFiles = glob($vpopMailDirectory.'/'.$domainName.'/.qmail-*');
 
+        // For local alias, we must add them on the same loop
+        $localAccountAlias = array();
+
+        // distant redirections, we must add them on the same loop (too)
+        $distantRedirections = array();
+
         foreach ($qmailFiles as $qmailFile) {
             $name = substr($qmailFile, strlen($vpopMailDirectory.'/'.$domainName.'/.qmail-'));
 
@@ -281,12 +287,6 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
             $name = str_replace(':', '.', $name);
 
             $qmailFileContent = file($qmailFile);
-
-            // For local alias, we must add them on the same loop
-            $localAccountAlias = array();
-
-            // distant redirections, we must add them on the same loop (too)
-            $distantRedirections = array();
 
             foreach ($qmailFileContent as $line) {
                 if (trim($line) == '') {
@@ -356,51 +356,52 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                 }
 
             } // end foreach lines of .qmail file
-
-            // create accounts needed
-            foreach ($distantRedirections as $src => $dstArray) {
-
-                file_put_contents(
-                    $creationFile,
-                    ' createAccount '.$src.' "'.
-                    $config['temporarypassword'].'" displayName "'.
-                    convert_name($name).' (disabled)" givenName "'.convert_name($name).' (disabled)"'."\n",
-                    FILE_APPEND
-                );
-                $stats['accounts']++;
-
-                file_put_contents(
-                    $alterFile,
-                    ' modifyAccount '.$src.' zimbraPrefMailForwardingAddress "'.
-                    implode(',', $dstArray).'"'."\n",
-                    FILE_APPEND
-                );
-                $stats['redirections']++;
-
-                file_put_contents(
-                    $alterFile,
-                    ' modifyAccount '.$src.' zimbraPrefMailLocalDeliveryDisabled TRUE'."\n",
-                    FILE_APPEND
-                );
-            }
-
-            // Add aliases at the same time
-            foreach ($localAccountAlias as $src => $dstArray) {
-                file_put_contents(
-                    $alterFile,
-                    ' addAccountAlias '.$src.' "'.implode(',', $dstArray).'"'."\n",
-                    FILE_APPEND
-                );
-                $stats['aliases']++;
-            }
-
         } // end .qmail-* files
+
+        // create accounts needed
+        foreach ($distantRedirections as $src => $dstArray) {
+
+            file_put_contents(
+                $creationFile,
+                ' createAccount '.$src.' "'.
+                $config['temporarypassword'].'" displayName "'.
+                convert_name($name).' (disabled)" givenName "'.convert_name($name).' (disabled)"'."\n",
+                FILE_APPEND
+            );
+            $stats['accounts']++;
+
+            file_put_contents(
+                $alterFile,
+                ' modifyAccount '.$src.' zimbraPrefMailForwardingAddress "'.
+                implode(',', $dstArray).'"'."\n",
+                FILE_APPEND
+            );
+            $stats['redirections']++;
+
+            file_put_contents(
+                $alterFile,
+                ' modifyAccount '.$src.' zimbraPrefMailLocalDeliveryDisabled TRUE'."\n",
+                FILE_APPEND
+            );
+        }
+
+        // Add aliases at the same time
+        foreach ($localAccountAlias as $src => $dstArray) {
+            file_put_contents(
+                $alterFile,
+                ' addAccountAlias '.$src.' "'.implode(',', $dstArray).'"'."\n",
+                FILE_APPEND
+            );
+            $stats['aliases']++;
+        }
+
+
     } // end loop dir()->read()
 }
 
 echo "Finished in ".round(microtime(true)-$startTime, 2)." seconds.\n";
 foreach ($stats as $name => $val) {
-    printf("%20s: %3d\n", $name, $val);
+    printf("%20s: %4d\n", $name, $val);
 }
 
 function convert_name($name)
