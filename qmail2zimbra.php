@@ -25,6 +25,16 @@ if (!$config) {
     exit(1);
 }
 
+$stats = array(
+    'domains'  => 0,
+    'accounts' => 0,
+    'mailings' => 0,
+    'aliases'  => 0,
+    'redirections' => 0,
+);
+
+$startTime = microtime(true);
+
 // Prepare domain aliases, to be added later
 $domainAliasesArray = array();
 
@@ -88,6 +98,7 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
         //printf("%s\n", $domainName);
 
         file_put_contents($creationFile, ' createDomain '.$domainName."\n", FILE_APPEND);
+        $stats['domains']++;
 
         // Add aliases
         if (isset($domainAliasesArray[$domainName])) {
@@ -118,6 +129,7 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                 convert_name($name).'" givenName "'.convert_name($name).'"'."\n",
                 FILE_APPEND
             );
+            $stats['accounts']++;
 
             $createdAccounts[] = $user;
 
@@ -178,6 +190,7 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                     ' createDistributionList '.$mailingAddress.'@'.$domainName."\n",
                     FILE_APPEND
                 );
+                $stats['mailings']++;
 
                 // Add members
                 if (!file_exists($config['ezmlmlist_bin'])) {
@@ -298,6 +311,7 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                             convert_name($name).' (disabled)" givenName "'.convert_name($name).' (disabled)"'."\n",
                             FILE_APPEND
                         );
+                        $stats['accounts']++;
 
                         file_put_contents(
                             $alterFile,
@@ -353,6 +367,7 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                     convert_name($name).' (disabled)" givenName "'.convert_name($name).' (disabled)"'."\n",
                     FILE_APPEND
                 );
+                $stats['accounts']++;
 
                 file_put_contents(
                     $alterFile,
@@ -360,6 +375,7 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                     implode(',', $dstArray).'"'."\n",
                     FILE_APPEND
                 );
+                $stats['redirections']++;
 
                 file_put_contents(
                     $alterFile,
@@ -375,12 +391,17 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                     ' addAccountAlias '.$src.' "'.implode(',', $dstArray).'"'."\n",
                     FILE_APPEND
                 );
+                $stats['aliases']++;
             }
 
         } // end .qmail-* files
     } // end loop dir()->read()
 }
 
+echo "Finished in ".round(microtime(true)-$startTime, 2)." seconds.\n";
+foreach ($stats as $name => $val) {
+    printf("%20s: %3d\n", $name, $val);
+}
 
 function convert_name($name)
 {
