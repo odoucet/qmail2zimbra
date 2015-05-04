@@ -347,7 +347,7 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
 
                 if (strpos($line, '@') !== false) {
                     // local or distant ?
-                    if (strpos($line, '@'.$domainName) === false) {
+                    if (strpos($line, '@'.$domainName) === false || count($qmailFileContent) > 1) {
                         // distant - we should create the email and set some Zimbra values
                         $distantRedirections[$name.'@'.$domainName][] = trim($line);
 
@@ -366,15 +366,16 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
 
         // create accounts needed
         foreach ($distantRedirections as $src => $dstArray) {
+            $accountName = substr($src, 0, strpos($src, '@'));
             file_put_contents(
                 $creationFile,
                 ' createAccount '.$src.' "'.
                 $config['temporarypassword'].'" displayName "'.
-                convert_name($name).' (disabled)" givenName "'.convert_name($name).' (disabled)"'."\n",
+                convert_name($accountName).' (disabled)" givenName "'.convert_name($accountName).' (disabled)"'."\n",
                 FILE_APPEND
             );
             $stats['accounts']++;
-            $createdAccounts[] = substr($src, 0, strpos($src, '@'));
+            $createdAccounts[] = $accountName;
 
             // if we also have local accounts, we must add them here because in next loop, we will have
             // an error stating the email account already exists.
@@ -434,7 +435,16 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                         ' modifyAccount '.$email.' zimbraPrefMailLocalDeliveryDisabled TRUE'."\n",
                         FILE_APPEND
                     );
-                    
+
+                } elseif (in_array(substr($src, 0, strpos($src, '@')), $existingMailingLists)) {
+                    // this is a mailing list alias
+                    file_put_contents(
+                        $alterFile,
+                        ' addDistributionListAlias '.$src.' "'.$email.'"'."\n",
+                        FILE_APPEND
+                    );
+                    $stats['aliases']++;
+
                 } else {
                     file_put_contents(
                         $alterFile,
