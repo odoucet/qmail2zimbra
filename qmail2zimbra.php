@@ -318,6 +318,7 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                             FILE_APPEND
                         );
                         $stats['accounts']++;
+                        $createdAccounts[] = $name;
 
                         file_put_contents(
                             $alterFile,
@@ -325,7 +326,6 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                             FILE_APPEND
                         );
                     }
-
 
                     $args = preg_split('@\s+@', $line);
 
@@ -374,6 +374,7 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                 FILE_APPEND
             );
             $stats['accounts']++;
+            $createdAccounts[] = substr($src, 0, strpos($src, '@'));
 
             // if we also have local accounts, we must add them here because in next loop, we will have
             // an error stating the email account already exists.
@@ -412,16 +413,36 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
             }
         }
 
-
         // Add aliases at the same time
         foreach ($localAccountAlias as $src => $dstArray) {
             foreach ($dstArray as $email) {
-                file_put_contents(
-                    $alterFile,
-                    ' addAccountAlias '.$src.' "'.$email.'"'."\n",
-                    FILE_APPEND
-                );
-                $stats['aliases']++;
+                // if $email is an existing account, we cannot use addAccountAlias
+                $namePart = substr($email, 0, strpos($email, '@'));
+
+                if (in_array($namePart, $createdAccounts)) {
+                    // cannot use alias system, must use forwarding process
+                    file_put_contents(
+                        $alterFile,
+                        ' modifyAccount '.$email.' zimbraPrefMailForwardingAddress "'.
+                        implode(', ', $dstArray).'"'."\n",
+                        FILE_APPEND
+                    );
+                    $stats['redirections']++;
+
+                    file_put_contents(
+                        $alterFile,
+                        ' modifyAccount '.$email.' zimbraPrefMailLocalDeliveryDisabled TRUE'."\n",
+                        FILE_APPEND
+                    );
+                    
+                } else {
+                    file_put_contents(
+                        $alterFile,
+                        ' addAccountAlias '.$src.' "'.$email.'"'."\n",
+                        FILE_APPEND
+                    );
+                    $stats['aliases']++;
+                }
             }
         }
 
