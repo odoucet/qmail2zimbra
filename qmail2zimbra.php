@@ -48,7 +48,9 @@ foreach ($data as $line) {
 
     $line[0] = substr($line[0], 1, -1);
 
-    if ($line[1] == $line[0]) continue;
+    if ($line[1] == $line[0]) {
+        continue;
+    }
 
     $domainAliasesArray[$line[1]][] = $line[0];
 }
@@ -103,8 +105,12 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
         // Add aliases
         if (isset($domainAliasesArray[$domainName])) {
             foreach ($domainAliasesArray[$domainName] as $dom) {
-                file_put_contents($creationFile, ' createAliasDomain '.$dom.' '.$domainName.
-                    ' zimbraMailCatchAllForwardingAddress  @'.$domainName."\n", FILE_APPEND);
+                file_put_contents(
+                    $creationFile,
+                    ' createAliasDomain '.$dom.' '.$domainName.
+                    ' zimbraMailCatchAllForwardingAddress  @'.$domainName."\n",
+                    FILE_APPEND
+                );
             }
         }
 
@@ -317,7 +323,7 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                             $alterFile,
                             ' modifyAccount '.$name.'@'.$domainName.' zimbraPrefMailLocalDeliveryDisabled TRUE'."\n",
                             FILE_APPEND
-                        ); 
+                        );
                     }
 
 
@@ -360,7 +366,6 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
 
         // create accounts needed
         foreach ($distantRedirections as $src => $dstArray) {
-
             file_put_contents(
                 $creationFile,
                 ' createAccount '.$src.' "'.
@@ -370,10 +375,21 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
             );
             $stats['accounts']++;
 
+            // if we also have local accounts, we must add them here because in next loop, we will have
+            // an error stating the email account already exists.
+            foreach ($localAccountAlias as $src2 => $dstArray2) {
+                foreach ($dstArray2 as $id => $email) {
+                    if ($email === $src) {
+                        $dstArray[] = $src2;
+                        unset($localAccountAlias[$src2][$id]);
+                    }
+                }
+            }
+
             file_put_contents(
                 $alterFile,
                 ' modifyAccount '.$src.' zimbraPrefMailForwardingAddress "'.
-                implode(',', $dstArray).'"'."\n",
+                implode(', ', $dstArray).'"'."\n",
                 FILE_APPEND
             );
             $stats['redirections']++;
@@ -385,16 +401,29 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
             );
         }
 
-        // Add aliases at the same time
+        // Zimbra does not handle redirection to alias, so we must transform them if we have.
         foreach ($localAccountAlias as $src => $dstArray) {
-            file_put_contents(
-                $alterFile,
-                ' addAccountAlias '.$src.' "'.implode(',', $dstArray).'"'."\n",
-                FILE_APPEND
-            );
-            $stats['aliases']++;
+            // check if $src is also an alias
+            foreach ($localAccountAlias as $src2 => $dstArray2) {
+                if (in_array($src, $dstArray2)) {
+                    $localAccountAlias[$src2] = $localAccountAlias[$src];
+                    unset($localAccountAlias[$src]);
+                }
+            }
         }
 
+
+        // Add aliases at the same time
+        foreach ($localAccountAlias as $src => $dstArray) {
+            foreach ($dstArray as $email) {
+                file_put_contents(
+                    $alterFile,
+                    ' addAccountAlias '.$src.' "'.$email.'"'."\n",
+                    FILE_APPEND
+                );
+                $stats['aliases']++;
+            }
+        }
 
     } // end loop dir()->read()
 }
@@ -410,4 +439,3 @@ function convert_name($name)
 
     return str_replace('"', '\"', iconv('ISO-8859-1', $config['destination_encoding'], $name));
 }
-
