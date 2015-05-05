@@ -26,3 +26,6 @@ destination_encoding = "UTF-8"
 
 ; /var/qmail/users/assign file path (contains domain aliases)
 qmail_users_assign = "/var/qmail/users/assign"
+
+; Zimbra zimbraPublicServiceHostname
+zimbra_public_service_hostname = ""

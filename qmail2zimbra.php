@@ -100,6 +100,15 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
         //printf("%s\n", $domainName);
 
         file_put_contents($creationFile, ' createDomain '.$domainName."\n", FILE_APPEND);
+        // if ZimbraPublicServiceHostname is set :
+        if ($config['zimbra_public_service_hostname'] != '') {
+            file_put_contents(
+                $creationFile,
+                ' modifyDomain '.$domainName.' zimbraPublicServiceHostname '.
+                $config['zimbra_public_service_hostname']."\n",
+                FILE_APPEND
+            );
+        }
         $stats['domains']++;
 
         // Add aliases
