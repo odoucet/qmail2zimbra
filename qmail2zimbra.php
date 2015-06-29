@@ -279,6 +279,11 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
         // Read all .qmail files now
         $qmailFiles = glob($vpopMailDirectory.'/'.$domainName.'/.qmail-*');
 
+        // qmail files can be in userdirectory too ...
+        $qmailFiles2 = glob($vpopMailDirectory.'/'.$domainName.'/*/.qmail');
+
+        $qmailFiles = array_merge($qmailFiles, $qmailFiles2);
+
         // For local alias, we must add them on the same loop
         $localAccountAlias = array();
 
@@ -286,7 +291,16 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
         $distantRedirections = array();
 
         foreach ($qmailFiles as $qmailFile) {
-            $name = substr($qmailFile, strlen($vpopMailDirectory.'/'.$domainName.'/.qmail-'));
+            if (strpos($qmailFile, '/.qmail-') !== false) {
+                $name = substr($qmailFile, strlen($vpopMailDirectory.'/'.$domainName.'/.qmail-'));
+                // $name can contain ':' : it means dot
+                $name = str_replace(':', '.', $name);
+
+            } else {
+                $name = strstr(substr($qmailFile, strlen($vpopMailDirectory.'/'.$domainName.'/')), '/', true);
+
+            }
+            
 
             if ($name == 'default') {
                 // already done
@@ -297,9 +311,6 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                 // @todo : double check this is a mlm, search in $existingMailingLists
                 continue;
             }
-
-            // $name can contain ':' : it means dot
-            $name = str_replace(':', '.', $name);
 
             $qmailFileContent = file($qmailFile);
 
@@ -312,6 +323,24 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                 if (strpos($line, 'ezmlm') !== false) {
                     // Mailing list, already done, skip whole file
                     continue 2;
+                }
+
+                // Redirect to maildir
+                if (strpos($line, '/Maildir')) {
+                    // parse domain directory to see whether it is distant or local
+                    if (strpos($line, '/'.$domainName.'/') !== false) {
+                        // local
+                        $tmp = explode('/', trim(substr($line, strpos($line, '/'.$domainName.'/'), -(strlen('/Maildir/'))), '/'));
+                        $tmp = $tmp[1].'@'.$tmp[0];
+                        $localAccountAlias[ $tmp ][] = $name.'@'.$domainName;
+
+                    } else {
+                        // distant
+                        $tmp = substr($line, strlen($vpopMailDirectory.'/'), -strlen('/Maildir/'));
+                        echo 'distant: ';
+                        var_dump($tmp);
+                    }
+                    // we can have multiple lines after, so no "continue" here
                 }
 
                 if (strpos($line, '/autorespond ') !== false) {
@@ -336,16 +365,20 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                         );
                     }
 
-                    $args = preg_split('@\s+@', $line);
+                    $args = preg_split('@\s+@', str_replace('| /', '|/', $line));
 
-                    $msgContent = convert_name(file_get_contents($args[3]));
-
-                    file_put_contents(
-                        $alterFile,
-                        ' modifyAccount '.$name.'@'.$domainName.' zimbraPrefOutOfOfficeReply "'.
-                        convert_name(str_replace("\n", '\n', substr($msgContent, strpos($msgContent, "\n", strpos($msgContent, "\n")+1)+2, 8000))).'"'."\n",
-                        FILE_APPEND
-                    );
+                    if (!file_exists($args[3])) {
+                        echo 'Responder for '.$name.'@'.$domainName.' refers to a non-existing file : '.$args[3]."\n";
+                        var_dump($args);
+                    } else {
+                        $msgContent = convert_name(file_get_contents($args[3]));
+                        file_put_contents(
+                            $alterFile,
+                            ' modifyAccount '.$name.'@'.$domainName.' zimbraPrefOutOfOfficeReply "'.
+                            convert_name(str_replace("\n", '\n', substr($msgContent, strpos($msgContent, "\n", strpos($msgContent, "\n")+1)+2, 8000))).'"'."\n",
+                            FILE_APPEND
+                        );
+                    }
                     continue;
                 }
 
@@ -364,10 +397,6 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                         // local
                         $localAccountAlias[trim($line)][] =  $name.'@'.$domainName;
                     }
-                } else {
-                    // Line unknown debug
-                    echo "CASE UNKNOWN: ".$qmailFile." \n";
-                    var_dump($line);
                 }
 
             } // end foreach lines of .qmail file
