@@ -394,8 +394,13 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                         $distantRedirections[$name.'@'.$domainName][] = trim($line);
 
                     } else {
-                        // local
-                        $localAccountAlias[trim($line)][] =  $name.'@'.$domainName;
+                        // local - check if account exists or else this is a misconfig so print warning but add nothing
+                        $tmp = substr(trim($line), 0, strpos(trim($line), '@'));
+                        if (in_array($tmp, $createdAccounts)) {
+                            $localAccountAlias[trim($line)][] =  $name.'@'.$domainName;
+                        } else {
+                            echo 'WARNING: '.$name.'@'.$domainName.' redirects to '.trim($line).' but this local account does not exist'."\n";
+                        }
                     }
                 }
 
@@ -405,15 +410,17 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
         // create accounts needed
         foreach ($distantRedirections as $src => $dstArray) {
             $accountName = substr($src, 0, strpos($src, '@'));
-            file_put_contents(
-                $creationFile,
-                ' createAccount '.$src.' "'.
-                $config['temporarypassword'].'" displayName "'.
-                convert_name($accountName).' (disabled)" givenName "'.convert_name($accountName).' (disabled)"'."\n",
-                FILE_APPEND
-            );
-            $stats['accounts']++;
-            $createdAccounts[] = $accountName;
+            if (!in_array($accountName, $createdAccounts)) {
+                file_put_contents(
+                    $creationFile,
+                    ' createAccount '.$src.' "'.
+                    $config['temporarypassword'].'" displayName "'.
+                    convert_name($accountName).' (disabled)" givenName "'.convert_name($accountName).' (disabled)"'."\n",
+                    FILE_APPEND
+                );
+                $stats['accounts']++;
+                $createdAccounts[] = $accountName;
+            }
 
             // if we also have local accounts, we must add them here because in next loop, we will have
             // an error stating the email account already exists.
