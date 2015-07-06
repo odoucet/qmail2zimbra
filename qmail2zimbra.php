@@ -131,6 +131,7 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
 
         // keep a list
         $createdAccounts = array();
+        $localAccountKeepEmail = array();
 
         foreach ($vpasswdLines as $account) {
             list($user, $passwd, , , $name, , $quota) = explode(':', $account);
@@ -332,8 +333,12 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                         // local
                         $tmp = explode('/', trim(substr($line, strpos($line, '/'.$domainName.'/'), -(strlen('/Maildir/'))), '/'));
                         $tmp = $tmp[1].'@'.$tmp[0];
-                        $localAccountAlias[ $tmp ][] = $name.'@'.$domainName;
-
+                        if ($tmp != $name.'@'.$domainName) {
+                            $localAccountAlias[ $tmp ][] = $name.'@'.$domainName;
+                        } else {
+                            $localAccountKeepEmail[$tmp] = true;
+                        }
+                        
                     } else {
                         // distant
                         $tmp = substr($line, strlen($vpopMailDirectory.'/'), -strlen('/Maildir/'));
@@ -397,7 +402,12 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                         // local - check if account exists or else this is a misconfig so print warning but add nothing
                         $tmp = substr(trim($line), 0, strpos(trim($line), '@'));
                         if (in_array($tmp, $createdAccounts)) {
-                            $localAccountAlias[trim($line)][] =  $name.'@'.$domainName;
+                            if (trim($line) != $name.'@'.$domainName) {
+                                // make sure no redirect on itself
+                                $localAccountAlias[trim($line)][] =  $name.'@'.$domainName;
+                            } else {
+                                $localAccountKeepEmail[trim($line)] = true;
+                            }
                         } else {
                             echo 'WARNING: '.$name.'@'.$domainName.' redirects to '.trim($line).' but this local account does not exist'."\n";
                         }
@@ -441,9 +451,15 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
             );
             $stats['redirections']++;
 
+            if (isset($localAccountKeepEmail[$src])) {
+                $tmp = 'FALSE';
+            } else {
+                $tmp = 'TRUE';
+            }
+
             file_put_contents(
                 $alterFile,
-                ' modifyAccount '.$src.' zimbraPrefMailLocalDeliveryDisabled TRUE'."\n",
+                ' modifyAccount '.$src.' zimbraPrefMailLocalDeliveryDisabled '.$tmp."\n",
                 FILE_APPEND
             );
         }
@@ -469,15 +485,19 @@ foreach ($config['vpopmaildirs'] as $vpopMailDirectory) {
                     // cannot use alias system, must use forwarding process
                     file_put_contents(
                         $alterFile,
-                        ' modifyAccount '.$email.' zimbraPrefMailForwardingAddress "'.
-                        implode(', ', $dstArray).'"'."\n",
+                        ' modifyAccount '.$email.' zimbraPrefMailForwardingAddress "'.$src.'"'."\n",
                         FILE_APPEND
                     );
                     $stats['redirections']++;
 
+                    if (isset($localAccountKeepEmail[$email])) {
+                        $tmp = 'FALSE';
+                    } else {
+                        $tmp = 'TRUE';
+                    }
                     file_put_contents(
                         $alterFile,
-                        ' modifyAccount '.$email.' zimbraPrefMailLocalDeliveryDisabled TRUE'."\n",
+                        ' modifyAccount '.$email.' zimbraPrefMailLocalDeliveryDisabled '.$tmp."\n",
                         FILE_APPEND
                     );
 
